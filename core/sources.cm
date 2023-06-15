@@ -1,0 +1,10 @@
+
+Group is
+  $/basis.cm
+
+  splitmix.sml
+  gen.sml
+  seq.sml
+  tree.sml
+  score.sml
+  property.sml
