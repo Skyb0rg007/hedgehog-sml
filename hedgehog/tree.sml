@@ -26,9 +26,10 @@ signature TREE =
 
     (* Combine lists of trees heuristically for shrinking purposes *)
     val interleave : 'a t list -> 'a list t
+    val shrinkList : 'a list -> 'a list Seq.t
 
     (* Produces a string rendering of the tree for debugging purposes *)
-    val render : string t -> string
+    val render : ('a -> string) -> 'a t -> string
   end
 
 structure Tree : TREE =
@@ -131,36 +132,48 @@ struct
 
     and interleave ts =
       Node (List.map root ts, Seq.append (dropSome ts, shrinkOne ts))
+
+    val halves = Seq.unfold (fn 0 => NONE | n => SOME (n, Int.quot (n, 2)))
   in
     val interleave = interleave
+
+    fun shrinkList xs =
+      Seq.concatMap
+        (fn k => removes k xs)
+        (halves (List.length xs))
   end
 
   (* Printing a tree *)
   local
-    val lines = String.fields (fn c => c = #"\n")
-
     fun shift (_, _, []) = []
       | shift (head, other, x :: xs) =
           head ^ x :: List.map (fn x => other ^ x) xs
 
     fun renderNode str = if String.size str = 1 then " " ^ str else str
 
-    fun renderTree (Node (x, xs)) =
-      lines (renderNode x) @ renderForest xs
+    val unlines = String.fields (fn c => c = #"\n")
 
-    and renderForest seq =
+    val leafEnd  = (* " └╼" *) " \226\148\148\226\149\188"
+    val leafCont = (* " ├╼" *) " \226\148\156\226\149\188"
+    val bar      = (* " │ " *) " \226\148\130 "
+
+    fun renderTree tos (Node (x, xs)) =
+      unlines (renderNode (tos x)) @ renderForest tos xs
+
+    and renderForest tos seq =
       case seq () of
           Seq.Nil => []
-        | Seq.Cons (x, seq') => renderForest' x seq'
+        | Seq.Cons (x, seq') => renderForest' tos x seq'
 
-    and renderForest' x seq =
+    and renderForest' tos x seq =
       case seq () of
           Seq.Nil =>
-            shift (" └╼", "   ", renderTree x)
+            shift (leafEnd, "   ", renderTree tos x)
         | Seq.Cons (y, rest) =>
-            shift (" ├╼", " │ ", renderTree x) @ renderForest' y rest
+            shift (leafCont, bar, renderTree tos x) @ renderForest' tos y rest
   in
-    fun render t = String.concatWith "\n" (renderTree t)
+    fun render toString t =
+      String.concatWith "\n" (renderTree toString t)
   end
 
 end

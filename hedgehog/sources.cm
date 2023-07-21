@@ -1,0 +1,20 @@
+
+Library
+  structure Hedgehog
+is
+  $/basis.cm
+
+  map.sml
+  ordmap.sml
+  monad.fun
+  range.sml
+  splitmix.sml
+  gen.sig
+  gen.sml
+  seq.sml
+  tree.sml
+  score.sml
+  property.sml
+  state.sml
+  function.sml
+  hedgehog.sml

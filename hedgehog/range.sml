@@ -1,0 +1,281 @@
+(* range.sml
+ * © 2023 Skye Soss
+ *)
+
+signature RANGE =
+  sig
+    datatype t = Range of IntInf.int * (int -> IntInf.int * IntInf.int)
+
+    (* The starting point for the range - what the value shrinks towards *)
+    val origin : t -> IntInf.int
+    (* Get the upper and lower bounds for a given size parameter *)
+    val bounds : t * int -> IntInf.int * IntInf.int
+    val lowerBound : t * int -> IntInf.int
+    val upperBound : t * int -> IntInf.int
+
+    (* Apply the function to the range's origin and bounds *)
+    val map : (IntInf.int -> IntInf.int) -> t -> t
+
+    (** Common ways to choose how the range scales with the size parameter
+     ** The variants with 2 arguments are passed lower and upper bounds
+     ** Those with 3 arguments are passed origin, then lower and upper bounds
+     **)
+
+    (* Only one value - origin = lowerBound = upperBound *)
+    val singleton : int -> t
+    (* No scaling, origin = lowerBound *)
+    val constant : int -> int -> t
+    (* No scaling *)
+    val constantFrom : int -> int -> int -> t
+    (* Scales linearly, origin = lowerBound *)
+    val linear : int -> int -> t
+    (* Scales linearly *)
+    val linearFrom : int -> int -> int -> t
+    (* Scales exponentially *)
+    val exponential : int -> int -> t
+    (* Scales exponentially, origin = lowerBound *)
+    val exponentialFrom : int -> int -> int -> t
+
+    (* The underlying functions which operate on infinite precision ints *)
+    val singleton' : IntInf.int -> t
+    val constant' : IntInf.int -> IntInf.int -> t
+    val constantFrom' : IntInf.int -> IntInf.int -> IntInf.int -> t
+    val linear' : IntInf.int -> IntInf.int -> t
+    val linearFrom' : IntInf.int -> IntInf.int -> IntInf.int -> t
+    val exponential' : IntInf.int -> IntInf.int -> t
+    val exponentialFrom' : IntInf.int -> IntInf.int -> IntInf.int -> t
+  end
+
+signature REAL_RANGE =
+  sig
+    datatype t = Range of LargeReal.real * (int -> LargeReal.real * LargeReal.real)
+
+    val origin : t -> LargeReal.real
+    val bounds : t * int -> LargeReal.real * LargeReal.real
+    val lowerBound : t * int -> LargeReal.real
+    val upperBound : t * int -> LargeReal.real
+
+    val map : (LargeReal.real -> LargeReal.real) -> t -> t
+
+    val singleton : real -> t
+    val constant : real -> real -> t
+    val constantFrom : real -> real -> real -> t
+    val linear : real -> real -> t
+    val linearFrom : real -> real -> real -> t
+    val exponential : real -> real -> t
+    val exponentialFrom : real -> real -> real -> t
+
+    val singleton' : LargeReal.real -> t
+    val constant' : LargeReal.real -> LargeReal.real -> t
+    val constantFrom' : LargeReal.real -> LargeReal.real -> LargeReal.real -> t
+    val linear' : LargeReal.real -> LargeReal.real -> t
+    val linearFrom' : LargeReal.real -> LargeReal.real -> LargeReal.real -> t
+    val exponential' : LargeReal.real -> LargeReal.real -> t
+    val exponentialFrom' : LargeReal.real -> LargeReal.real -> LargeReal.real -> t
+  end
+
+structure Range : RANGE =
+  struct
+    datatype t = Range of IntInf.int * (int -> IntInf.int * IntInf.int)
+
+    fun origin (Range (z, _)) = z
+    fun bounds (Range (_, f), sz) = f sz
+    fun lowerBound (Range (_, f), sz) = #1 (f sz)
+    fun upperBound (Range (_, f), sz) = #2 (f sz)
+    fun map k (Range (z, f)) =
+      Range (k z, fn sz =>
+        let
+          val (lb, ub) = f sz
+        in
+          (k lb, k ub)
+        end)
+
+    fun singleton' x = Range (x, fn _ => (x, x))
+
+    fun constantFrom' z x y = Range (z, fn _ => (x, y))
+
+    fun constant' x y = constantFrom' x x y
+
+    fun scaleLinear (size, origin, n) =
+      let
+        val size = Int.max (0, Int.min (99, size))
+        val delta = n - origin
+        val sign = IntInf.fromInt (IntInf.sign delta)
+        val range = delta + sign
+        val diff = IntInf.quot (range * IntInf.fromInt size, 100)
+      in
+        origin + diff
+      end
+
+    fun linearFrom' z x y =
+      Range (z, fn sz =>
+        let
+          val lo = IntInf.max (x, IntInf.min (y, scaleLinear (sz, z, x)))
+          val hi = IntInf.max (x, IntInf.min (y, scaleLinear (sz, z, y)))
+        in
+          (lo, hi)
+        end)
+
+    fun linear' x y = linearFrom' x x y
+
+    fun scaleExp (size, origin, n) =
+      let
+        val size = Int.max (0, Int.min (99, size))
+        val delta = n - origin
+        val sign = LargeReal.fromInt (IntInf.sign delta)
+        val base = abs delta + 1
+        val baseReal = LargeReal.fromLargeInt base
+        val exptReal = LargeReal.fromInt size / 99.0
+        val absDiff = LargeReal.Math.pow (baseReal, exptReal) - 1.0
+        val diffReal = absDiff * sign
+        val diffLarge = LargeReal.toLargeInt IEEEReal.TO_NEAREST diffReal
+      in
+        origin + diffLarge
+      end
+
+    fun exponentialFrom' z x y =
+      Range (z, fn sz =>
+        let
+          val lo = IntInf.max (x, IntInf.min (y, scaleExp (sz, z, x)))
+          val hi = IntInf.max (x, IntInf.min (y, scaleExp (sz, z, y)))
+        in
+          (lo, hi)
+        end)
+
+    fun exponential' x y = exponentialFrom' x x y
+
+    fun singleton x = singleton' (IntInf.fromInt x)
+
+    fun constantFrom z x y =
+      constantFrom'
+        (IntInf.fromInt z)
+        (IntInf.fromInt x)
+        (IntInf.fromInt y)
+
+    fun constant x y =
+      constant'
+        (IntInf.fromInt x)
+        (IntInf.fromInt y)
+
+    fun linearFrom z x y =
+      linearFrom'
+        (IntInf.fromInt z)
+        (IntInf.fromInt x)
+        (IntInf.fromInt y)
+
+    fun linear x y =
+      linear'
+        (IntInf.fromInt x)
+        (IntInf.fromInt y)
+
+    fun exponentialFrom z x y =
+      exponentialFrom'
+        (IntInf.fromInt z)
+        (IntInf.fromInt x)
+        (IntInf.fromInt y)
+
+    fun exponential x y =
+      exponential'
+        (IntInf.fromInt x)
+        (IntInf.fromInt y)
+  end
+
+structure RealRange : REAL_RANGE =
+  struct
+    datatype t = Range of LargeReal.real * (int -> LargeReal.real * LargeReal.real)
+
+    fun origin (Range (z, _)) = z
+    fun bounds (Range (_, f), sz) = f sz
+    fun lowerBound (Range (_, f), sz) = #1 (f sz)
+    fun upperBound (Range (_, f), sz) = #2 (f sz)
+    fun map k (Range (z, f)) =
+      Range (k z, fn sz =>
+        let
+          val (lb, ub) = f sz
+        in
+          (k lb, k ub)
+        end)
+
+    fun singleton' x = Range (x, fn _ => (x, x))
+
+    fun constantFrom' z x y = Range (z, fn _ => (x, y))
+
+    fun constant' x y = constantFrom' x x y
+
+    fun scaleLinear (size, origin, n) =
+      let
+        val size = Int.max (0, Int.min (99, size))
+        val diff = (n - origin) * (LargeReal.fromInt size / 99.0)
+      in
+        origin + diff
+      end
+
+    fun linearFrom' z x y =
+      Range (z, fn sz =>
+        let
+          val lo = LargeReal.max (x, LargeReal.min (y, scaleLinear (sz, z, x)))
+          val hi = LargeReal.max (x, LargeReal.min (y, scaleLinear (sz, z, y)))
+        in
+          (lo, hi)
+        end)
+
+    fun linear' x y = linearFrom' x x y
+
+    fun scaleExp (size : int, origin : LargeReal.real, n : LargeReal.real) =
+      let
+        val size = Int.max (0, Int.min (99, size))
+        val delta = n - origin
+        val sign = LargeReal.fromInt (LargeReal.sign delta)
+        val base = LargeReal.abs delta + 1.0
+        val expt = LargeReal.fromInt size / 99.0
+        val diff = (LargeReal.Math.pow (base, expt) - 1.0) * sign
+      in
+        origin + diff
+      end
+
+    fun exponentialFrom' z x y =
+      Range (z, fn sz =>
+        let
+          val lo = LargeReal.max (x, LargeReal.min (y, scaleExp (sz, z, x)))
+          val hi = LargeReal.max (x, LargeReal.min (y, scaleExp (sz, z, y)))
+        in
+          (lo, hi)
+        end)
+
+    fun exponential' x y = exponentialFrom' x x y
+
+    fun singleton x = singleton' (Real.fromLarge IEEEReal.TO_NEAREST x)
+
+    fun constantFrom z x y =
+      constantFrom'
+        (Real.fromLarge IEEEReal.TO_NEAREST z)
+        (Real.fromLarge IEEEReal.TO_NEAREST x)
+        (Real.fromLarge IEEEReal.TO_NEAREST y)
+
+    fun constant x y =
+      constant'
+        (Real.fromLarge IEEEReal.TO_NEAREST x)
+        (Real.fromLarge IEEEReal.TO_NEAREST y)
+
+    fun linearFrom z x y =
+      linearFrom'
+        (Real.fromLarge IEEEReal.TO_NEAREST z)
+        (Real.fromLarge IEEEReal.TO_NEAREST x)
+        (Real.fromLarge IEEEReal.TO_NEAREST y)
+
+    fun linear x y =
+      linear'
+        (Real.fromLarge IEEEReal.TO_NEAREST x)
+        (Real.fromLarge IEEEReal.TO_NEAREST y)
+
+    fun exponentialFrom z x y =
+      exponentialFrom'
+        (Real.fromLarge IEEEReal.TO_NEAREST z)
+        (Real.fromLarge IEEEReal.TO_NEAREST x)
+        (Real.fromLarge IEEEReal.TO_NEAREST y)
+
+    fun exponential x y =
+      exponential'
+        (Real.fromLarge IEEEReal.TO_NEAREST x)
+        (Real.fromLarge IEEEReal.TO_NEAREST y)
+  end

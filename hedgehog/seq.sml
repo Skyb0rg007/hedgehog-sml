@@ -17,6 +17,7 @@ signature SEQ =
 
     (* Operations *)
     val isEmpty : 'a t -> bool
+    val head : 'a t -> 'a option
     val map : ('a -> 'b) -> 'a t -> 'b t
     val mapPartial : ('a -> 'b option) -> 'a t -> 'b t
     val filter : ('a -> bool) -> 'a t -> 'a t
@@ -26,6 +27,9 @@ signature SEQ =
     val concat : 'a t t -> 'a t
     val concatMap : ('a -> 'b t) -> 'a t -> 'b t
     val zipWith : ('a * 'b -> 'c) -> 'a t * 'b t -> 'c t
+    val find : ('a -> bool) -> 'a t -> 'a option
+    val toList : 'a t -> 'a list
+    val app : ('a -> unit) -> 'a t -> unit
   end
 
 structure Seq : SEQ =
@@ -42,6 +46,11 @@ structure Seq : SEQ =
       case s () of
           Nil => true
         | Cons _ => false
+
+    fun head s =
+      case s () of
+          Nil => NONE
+        | Cons (x, _) => SOME x
 
     fun singleton x () = Cons (x, empty)
 
@@ -113,4 +122,19 @@ structure Seq : SEQ =
             case s2 () of
                 Nil => Nil
               | Cons (y, ys) => Cons (f (x, y), zipWith f (xs, ys))
+
+    fun find p s =
+      case s () of
+          Nil => NONE
+        | Cons (x, xs) => if p x then SOME x else find p xs
+
+    fun toList s =
+      case s () of
+          Nil => []
+        | Cons (x, xs) => x :: toList xs
+
+    fun app f s =
+      case s () of
+          Nil => ()
+        | Cons (x, xs) => (f x; app f xs)
   end

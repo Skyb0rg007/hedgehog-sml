@@ -1,7 +1,19 @@
 
 # Hedgehog
 
+### Requirements
+
+- SML '97 support
+- `IntInf` is the largest integer type
+
+Currently supported
+
+- SMLNJ
+- MLton
+
 ### Changes from Haskell
 
-- All integral operations operate on `LargeInt.int`
-  * Because SML doesn't have typeclasses, this saves a lot of code duplication
+- Two different range types - `Range` and `RealRange`
+  + Each uses the largest respective numeric type instead of being polymorphic
+
+

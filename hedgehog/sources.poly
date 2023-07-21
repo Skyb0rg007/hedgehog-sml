@@ -1,0 +1,32 @@
+(* vim: set ft=sml:
+ * sources.poly
+ * © 2023 Skye Soss
+ *
+ * Build script for Poly/ML
+ *)
+
+val _ : string = outfile
+
+val () = use "compat/polyml.sml"
+val () = use "hedgehog/seq.sml"
+val () = use "hedgehog/tree.sml"
+val () = use "hedgehog/monad.fun"
+val () = use "hedgehog/map.sml"
+val () = use "hedgehog/ordmap.sml"
+val () = use "hedgehog/score.sml"
+val () = use "hedgehog/splitmix.sml"
+val () = use "hedgehog/range.sml"
+val () = use "hedgehog/gen.sig"
+val () = use "hedgehog/gen.sml"
+val () = use "hedgehog/state.sml"
+val () = use "hedgehog/function.sml"
+val () = use "hedgehog/property.sml"
+val () = use "hedgehog/hedgehog.sml"
+
+val module = {
+    sigs = [],
+    structs = ["Hedgehog"],
+    functors = [],
+    onStartup = NONE
+  }
+val () = PolyML.SaveState.saveModule (outfile, module)

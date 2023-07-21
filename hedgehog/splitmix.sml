@@ -1,35 +1,42 @@
-(* Fast Splittable Pseudorandom Number Generators
- * https://gee.cs.oswego.edu/dl/papers/oopsla14.pdf *)
+(* splitmix.sml
+ * © 2023 Skye Soss
+ *
+ * Fast Splittable Pseudorandom Number Generators
+ * https://gee.cs.oswego.edu/dl/papers/oopsla14.pdf
+ *)
 
 signature SPLITMIX =
   sig
     (* Random number generator. This is a value type (no internal mutation) *)
     type t
 
-    (* Create a random number generator from a seed *)
+    (* Create a random number generator from a seed integer *)
     val fromWord64 : Word64.word -> t
+
+    (* Create a random number generator using current time as initialization *)
+    val new : unit -> t
 
     (* Split a generator into two independent generators *)
     val split : t -> t * t
-
-    (* Generate a random integer in the range [0, 2^64) *)
-    val word64 : t -> Word64.word * t
-
-    (* Generate a random integer in the range [0, 2^32) *)
-    val word32 : t -> Word32.word * t
 
     (* Generate a random integer between given low and high
      * raises `Fail` if `lo > hi` *)
     val intInfRange : IntInf.int * IntInf.int -> t -> IntInf.int * t
 
     (* Generate a random floating point number between given low and high
-     * raises `Fail` if `lo > hi` *)
-    val realRange : real * real -> t -> real * t
+     * raises `Fail` if `lo > hi` or if either input is NaN or infinite *)
+    val realRange : LargeReal.real * LargeReal.real -> t -> LargeReal.real * t
   end
 
 structure SplitMix : SPLITMIX =
   struct
     infix >> << andb orb xorb
+
+    val op >> = Word64.>>
+    val op << = Word64.<<
+    val op andb = Word64.andb
+    val op orb = Word64.orb
+    val op xorb = Word64.xorb
 
     datatype t = T of {gamma: Word64.word, value: Word64.word}
 
@@ -37,9 +44,6 @@ structure SplitMix : SPLITMIX =
     fun popCount 0wxffffffffffffffff = 64
       | popCount w =
       let
-        val op andb = Word64.andb
-        val op >> = Word64.>>
-
         val m1 = 0wx5555555555555555
         val m2 = 0wx3333333333333333
         val m4 = 0wx0f0f0f0f0f0f0f0f
@@ -56,9 +60,6 @@ structure SplitMix : SPLITMIX =
     fun leadingZeros 0w0 = 64
       | leadingZeros w =
       let
-        val op andb = Word64.andb
-        val op << = Word64.<<
-
         val (w, n) =
           if (w andb 0wxffffffff00000000) = 0w0
           then (w << 0w32, 32)
@@ -89,32 +90,14 @@ structure SplitMix : SPLITMIX =
 
     fun mix64 w =
       let
-        val op >> = Word64.>>
-        val op xorb = Word64.xorb
-
         val w = (w xorb (w >> 0w33)) * 0wxff51afd7ed558ccd
         val w = (w xorb (w >> 0w33)) * 0wxc4ceb9fe1a85ec53
       in
         w xorb (w >> 0w33)
       end
 
-    fun mix32 w =
-      let
-        val op >> = Word64.>>
-        val op xorb = Word64.xorb
-
-        val w = (w xorb (w >> 0w33)) * 0wxff51afd7ed558ccd
-        val w = (w xorb (w >> 0w33)) * 0wxc4ceb9fe1a85ec53
-      in
-        Word32.fromLarge (w >> 0w32)
-      end
-
     fun mixGamma w =
       let
-        val op >> = Word64.>>
-        val op orb = Word64.orb
-        val op xorb = Word64.xorb
-
         val w = (w xorb (w >> 0w30)) * 0wxbf58476d1ce4e5b9
         val w = (w xorb (w >> 0w27)) * 0wx94d049bb133111eb
         val w = (w xorb (w >> 0w31))
@@ -126,7 +109,7 @@ structure SplitMix : SPLITMIX =
         else w
       end
 
-      (** Exports **)
+    (** Exports **)
 
     fun fromWord64 w =
       let
@@ -144,6 +127,34 @@ structure SplitMix : SPLITMIX =
          T {gamma = mixGamma g, value = mix64 v})
       end
 
+    local
+      val global : t option ref = ref NONE
+
+      fun initial () =
+        let
+          val msec = Word64.fromLargeInt (Time.toMilliseconds (Time.now ()))
+          val word =
+              ((msec andb 0wxFF000000) >> 0w24)
+            + ((msec andb 0wx00FF0000) >> 0w8)
+            + ((msec andb 0wx0000FF00) << 0w8)
+            + ((msec andb 0wx000000FF) << 0w24)
+        in
+          fromWord64 word
+        end
+    in
+      fun new () =
+        let
+          val g =
+            case !global of
+                SOME g => g
+              | NONE => initial ()
+          val (g1, g2) = split g
+        in
+          global := SOME g1;
+          g2
+        end
+    end
+
     fun word64 (T {gamma, value}) =
       let
         val v = gamma + value
@@ -151,29 +162,20 @@ structure SplitMix : SPLITMIX =
         (mix64 v, T {gamma = gamma, value = v})
       end
 
-    fun word32 (T {gamma, value}) =
-      let
-        val v = gamma + value
-      in
-        (mix32 v, T {gamma = gamma, value = v})
-      end
-
-      (* Generates a random word less than `range`
-       * Algorithm:
-       *   1. Generate a 64-bit word
-       *   2. Mask out bits until it has the same number of bits as `range`
-       *   3. If less than range, return it. Otherwise repeat step 1. *)
+    (* Generates a random word less than `range`
+     * Algorithm:
+     *   1. Generate a 64-bit word
+     *   2. Mask out bits until it has the same number of bits as `range`
+     *   3. If less than range, return it. Otherwise repeat step 1. *)
     fun bitmaskWithRejection (range, gen) =
       let
-        val op >> = Word64.>>
-        val op orb = Word64.orb
-
-        val mask = Word64.notb 0w0 >> Word.fromInt (leadingZeros (range orb 0w1))
+        val ones = Word64.notb 0w0
+        val mask = ones >> Word.fromInt (leadingZeros (range orb 0w1))
 
         fun go gen =
           let
             val (w, gen) = word64 gen
-            val w = Word64.andb (w, mask)
+            val w = w andb mask
           in
             if w < range
               then (w, gen)
@@ -253,7 +255,7 @@ structure SplitMix : SPLITMIX =
                (lo + bounded, gen)
              end
 
-    val w64ToReal = Real.fromLargeInt o Word64.toLargeInt
+    val w64ToReal = LargeReal.fromLargeInt o Word64.toLargeInt
 
     (* Generate a real between 0.0 and 1.0 *)
     fun nextReal01 gen =
@@ -266,9 +268,9 @@ structure SplitMix : SPLITMIX =
     fun realRange (lo, hi) gen =
       if lo > hi
         then raise Fail "SplitMix.realRange: lo > hi"
-      else if Real.== (lo, hi)
+      else if LargeReal.== (lo, hi)
         then (lo, gen)
-      else if Real.isFinite lo andalso Real.isFinite hi
+      else if LargeReal.isFinite lo andalso LargeReal.isFinite hi
         then
           let
             val (x, gen) = nextReal01 gen
@@ -276,7 +278,6 @@ structure SplitMix : SPLITMIX =
             (x * lo + (1.0 - x) * hi, gen)
           end
       else
-        (* This happens to work properly when lo and hi are ±inf or NaN *)
-        (lo + hi, gen)
+        raise Fail "SplitMix.realRange: lo and hi must be finite"
 
   end
