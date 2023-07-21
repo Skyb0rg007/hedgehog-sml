@@ -2,7 +2,7 @@
  * sources.poly
  * © 2023 Skye Soss
  *
- * Build script for Poly/ML
+ * Build script (Poly/ML)
  *)
 
 val _ : string = outfile
@@ -14,7 +14,9 @@ val () = use "hedgehog/monad.fun"
 val () = use "hedgehog/map.sml"
 val () = use "hedgehog/ordmap.sml"
 val () = use "hedgehog/score.sml"
+val () = use "hedgehog/splitmix.sig"
 val () = use "hedgehog/splitmix.sml"
+val () = use "hedgehog/range.sig"
 val () = use "hedgehog/range.sml"
 val () = use "hedgehog/gen.sig"
 val () = use "hedgehog/gen.sml"

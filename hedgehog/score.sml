@@ -165,7 +165,7 @@ structure Score : SCORE =
       end
 
     (* https://en.wikipedia.org/wiki/Binomial_proportion_confidence_interval#Wilson_score_interval *)
-    fun wilsonBounds {positives, count, confidence} =
+    fun wilsonBounds {positives : LargeInt.int, count : LargeInt.int, confidence : LargeInt.int} =
       let
         val () = if count <= 0 then raise Domain else ()
         val () = if positives > count then raise Domain else ()

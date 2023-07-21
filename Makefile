@@ -2,11 +2,14 @@
 MLTON := mlton
 MLTON_FLAGS :=
 
-SMLNJ := smlnj
+SMLNJ := sml
 SMLNJ_FLAGS :=
 
 POLY := poly
 POLY_FLAGS :=
+
+MLKIT := mlkit
+MLKIT_FLAGS := 
 
 DIEHARDER := dieharder
 
@@ -30,7 +33,9 @@ endif
 SOURCES := $(wildcard hedgehog/*.sml hedgehog/*.sig hedgehog/*.fun)
 
 .DEFAULT: all
-.PHONY: all splitmix-dieharder check-dieharder poly
+.PHONY: all
+.PHONY: splitmix-dieharder check-dieharder
+.PHONY: smlnj
 
 all:
 	@echo "=== Makefile targets ==="
@@ -46,10 +51,15 @@ all:
 	@echo "make INT=inf - set default int type to IntInf.int"
 	@echo "make REAL=32 - set default real type to Real32.real"
 
-typecheck: hedgehog/sources.mlb $(wildcard hedgehog/*.sml hedgehog/*.sig hedgehog/*.fun)
+typecheck: hedgehog/sources.mlb $(SOURCES)
 	$(MLTON) $(MLTON_FLAGS) -stop tc hedgehog/sources.mlb
 
 poly: $(BUILDDIR)/hedgehog.poly
+
+smlnj:
+	echo | $(SMLNJ) $(SMLNJ_FLAGS) -m hedgehog/sources.cm
+
+mlkit: $(BUILDDIR)/hedgehog.mlkit
 
 splitmix-dieharder: check-dieharder $(BUILDDIR)/splitmix-dieharder
 	@echo "Running dieharder test suite. This may take a while."
@@ -65,15 +75,19 @@ clean:
 	$(RM) $(BUILDDIR)/splitmix-dieharder $(BUILDDIR)/splitmix-dieharder.log
 	$(RM) $(BUILDDIR)/hedgehog.poly
 	$(RM) -d $(BUILDDIR)
-	$(RM) -r hedgehog/.cm
+	$(RM) -r hedgehog/.cm/
+	$(RM) -r compat/MLB/ hedgehog/MLB/
 
 $(BUILDDIR):
 	mkdir -p $@
 
-$(BUILDDIR)/splitmix-dieharder: test/splitmix-dieharder/test.sml test/splitmix-dieharder/sources.mlb | $(BUILDDIR)
-	$(MLTON) $(MLTON_FLAGS) -output $@ test/splitmix-dieharder/sources.mlb
+$(BUILDDIR)/splitmix-dieharder: test/splitmix-dieharder/sources.mlb test/splitmix-dieharder/test.sml hedgehog/sources.mlb $(SOURCES) | $(BUILDDIR)
+	$(MLTON) $(MLTON_FLAGS) -output $@ $<
 
 $(BUILDDIR)/hedgehog.poly: hedgehog/sources.poly $(SOURCES) | $(BUILDDIR)
 	echo | $(POLY) $(POLY_FLAGS) -q --error-exit \
 		--eval 'val outfile = "$@"' \
 		--eval 'use "$<"'
+
+$(BUILDDIR)/hedgehog.mlkit: hedgehog/sources.mlkit.mlb | $(BUILDDIR)
+	$(MLKIT) $(MLKIT_FLAGS) --compile_only --output $@ $<

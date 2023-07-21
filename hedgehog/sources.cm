@@ -1,3 +1,8 @@
+(* sources.cm
+ * © 2023 Skye Soss
+ *
+ * Compilation manager file (SML/NJ)
+ *)
 
 Library
   structure Hedgehog
@@ -7,7 +12,9 @@ is
   map.sml
   ordmap.sml
   monad.fun
+  range.sig
   range.sml
+  splitmix.sig
   splitmix.sml
   gen.sig
   gen.sml

@@ -2,7 +2,7 @@
  * © 2023 Skye Soss
  *)
 
-signature HEDGEHOG_PROPERTY =
+signature PROPERTY =
   sig
     include MONAD
 
@@ -61,7 +61,7 @@ signature HEDGEHOG_PROPERTY =
     val report : unit t -> report
   end
 
-structure Property : HEDGEHOG_PROPERTY =
+structure Property =
   struct
 
     structure Cover =

@@ -1,4 +1,5 @@
-(* sources.mlb
+(* vim: set ft=mlbasis:
+ * sources.mlb
  * © 2023 Skye Soss
  *
  * ML Basis file (MLton)
@@ -6,7 +7,8 @@
 
 local
    $(SML_LIB)/basis/basis.mlb
-   ../compat/mlton.sml
+   ../compat/mlkit.sml
+
    (* Internal modules *)
    seq.sml
    tree.sml
@@ -18,6 +20,7 @@ local
    (* Exported modules *)
    splitmix.sig
    splitmix.sml
+   range.sig
    range.sml
    gen.sig
    gen.sml
@@ -25,8 +28,7 @@ local
    function.sml
    property.sml
 
+in
    (* Interface *)
    hedgehog.sml
-in
-   structure Hedgehog
 end
