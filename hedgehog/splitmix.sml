@@ -204,7 +204,7 @@ structure SplitMix :> SPLITMIX =
           in
             if l < t
               then go gen
-              else (IntInf.~>> (m, k), gen)
+              else IntInf.~>> (m, k)
           end
       in
         go gen
@@ -213,11 +213,11 @@ structure SplitMix :> SPLITMIX =
     fun intInfRange (lo, hi) =
       case IntInf.compare (lo, hi) of
            GREATER => raise Fail "SplitMix.intInfRange: lo > hi"
-         | EQUAL => (fn gen => (lo, gen))
+         | EQUAL => (fn _ => lo)
          | LESS => fn gen =>
              let
                val limit = hi - lo
-               val (bounded, gen) =
+               val bounded =
                  if limit < Word64.toLargeInt (Word64.notb 0w0)
                    then
                      (* Optimized algorithm if limit fits in 64-bit word *)
@@ -225,11 +225,11 @@ structure SplitMix :> SPLITMIX =
                        val n = Word64.fromLargeInt limit
                        val (w, gen) = bitmaskWithRejection (n + 0w1, gen)
                      in
-                       (Word64.toLargeInt w, gen)
+                       Word64.toLargeInt w
                      end
                    else nextIntInf' (limit + 1, gen)
              in
-               (lo + bounded, gen)
+               (lo + bounded)
              end
 
     val w64ToReal = LargeReal.fromLargeInt o Word64.toLargeInt
@@ -237,22 +237,22 @@ structure SplitMix :> SPLITMIX =
     (* Generate a real between 0.0 and 1.0 *)
     fun nextReal01 gen =
       let
-        val (w, gen) = word64 gen
+        val (w, _) = word64 gen
       in
-        (w64ToReal w / w64ToReal (Word64.notb 0w0), gen)
+        w64ToReal w / w64ToReal (Word64.notb 0w0)
       end
 
     fun realRange (lo, hi) gen =
       if lo > hi
         then raise Fail "SplitMix.realRange: lo > hi"
       else if LargeReal.== (lo, hi)
-        then (lo, gen)
+        then lo
       else if LargeReal.isFinite lo andalso LargeReal.isFinite hi
         then
           let
-            val (x, gen) = nextReal01 gen
+            val x = nextReal01 gen
           in
-            (x * lo + (1.0 - x) * hi, gen)
+            x * lo + (1.0 - x) * hi
           end
       else
         raise Fail "SplitMix.realRange: lo and hi must be finite"

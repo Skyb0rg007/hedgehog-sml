@@ -177,15 +177,46 @@ structure Gen =
           val origin = Range.origin range
           val (lo, hi) = Range.bounds (range, size)
         in
-          buildTree (origin, #1 (SplitMix.intInfRange (lo, hi) seed))
+          buildTree (origin, SplitMix.intInfRange (lo, hi) seed)
         end
     end
 
-    fun int range = map IntInf.toInt (intInf range)
-    fun word range = map Word.fromLargeInt (intInf range)
-    fun word32 range = map Word32.fromLargeInt (intInf range)
+    fun int range = map Int.fromLarge (intInf range)
+    fun int32 range = map Int32.fromLarge (intInf range)
+    fun int64 range = map Int64.fromLarge (intInf range)
+    fun position range = map Position.fromLarge (intInf range)
 
-    fun int_ range = map IntInf.toInt (prune (intInf range))
+    fun word range = map Word.fromLargeInt (intInf range)
+    fun word8 range = map Word8.fromLargeInt (intInf range)
+    fun word32 range = map Word32.fromLargeInt (intInf range)
+    fun word64 range = map Word64.fromLargeInt (intInf range)
+    fun largeWord range = map LargeWord.fromLargeInt (intInf range)
+    fun sysWord range = map SysWord.fromLargeInt (intInf range)
+
+    local
+      val halves = Seq.unfold
+        (fn r =>
+          if LargeReal.!= (r, 0.0) andalso LargeReal.isFinite r
+            then SOME (r, r / 2.0)
+            else NONE)
+
+      fun towardsFloat dest x =
+        if LargeReal.== (dest, x)
+          then Seq.empty
+          else Seq.map (fn y => x - y) (halves (x - dest))
+    in
+      fun largeReal range (size, seed) =
+        let
+          val origin = RealRange.origin range
+          val (lo, hi) = RealRange.bounds (range, size)
+          val r = SplitMix.realRange (lo, hi) seed
+        in
+          SOME (Tree.unfold (towardsFloat origin) r)
+        end
+    end
+
+    fun real range = map (Real.fromLarge IEEEReal.TO_NEAREST) (largeReal range)
+    fun real64 range = map (Real64.fromLarge IEEEReal.TO_NEAREST) (largeReal range)
 
     fun element [] = raise Fail "Gen.element: empty list"
       | element xs =
@@ -213,8 +244,8 @@ structure Gen =
                 else pick (n - k, xs)
 
           val range = Range.constant 1 sum
-          val index =
-            shrink (fn n => List.filter (fn m => m < n) iis) (int_ range)
+          val index = prune (int range)
+          val index = shrink (fn n => List.filter (fn m => m < n) iis) index
         in
           bind index (fn n => pick (n, xs))
         end
@@ -239,7 +270,7 @@ structure Gen =
       fun list range gen =
         sized (fn size =>
           ensure (atLeast (Range.lowerBound (range, size)))
-            (bind (int_ range)
+            (bind (prune (int range))
               (fn n =>
                 interleave o replicate n (Option.map Tree.singleton o gen))))
     end
@@ -289,14 +320,14 @@ structure Gen =
                 bind (replicate n (freeze g)) (fn kvs =>
                   let
                     val kvs' = List.map (fn ((k, _), g) => (k, g)) kvs
-                    val m' = Map.insertUntil cmp (m, kvs', n)
+                    val m' = Map.insertUntil (m, kvs', n)
                   in
                     if Map.size m' >= n
                       then pure (Map.elems m')
                       else try (k + 1) m'
                   end)
         in
-          try 0 Map.empty
+          try 0 (Map.empty cmp)
         end
     in
 
@@ -318,7 +349,6 @@ structure Gen =
           (assocList cmp n (map (fn k => (k, ())) g))
 
     end
-
     
     local
       datatype 'a subterms

@@ -19,15 +19,26 @@ BUILDDIR := _build
 
 ifeq ($(WORD),32)
 MLTON_FLAGS += -default-type word32
+else ifeq ($(WORD),64)
+MLTON_FLAGS += -default-type word64
+else ifneq ($(WORD),)
+$(error "Invalid WORD setting ($(WORD)), must be 32 or 64")
 endif
 ifeq ($(INT),32)
 MLTON_FLAGS += -default-type int32
-endif
-ifeq ($(INT),inf)
+else ifeq ($(INT),64)
+MLTON_FLAGS += -default-type int64
+else ifeq ($(INT),inf)
 MLTON_FLAGS += -default-type intinf
+else ifneq ($(INT),)
+$(error "Invalid INT setting ($(INT)), must be 32, 64, or inf")
 endif
 ifeq ($(REAL),32)
 MLTON_FLAGS += -default-type real32
+else ifeq ($(REAL),64)
+MLTON_FLAGS += -default-type real64
+else ifneq ($(REAL),)
+$(error "Invalid REAL setting ($(REAL)), must be 32 or 64")
 endif
 
 SOURCES := $(wildcard hedgehog/*.sml hedgehog/*.sig hedgehog/*.fun)
@@ -76,7 +87,7 @@ clean:
 	$(RM) $(BUILDDIR)/hedgehog.poly
 	$(RM) -d $(BUILDDIR)
 	$(RM) -r hedgehog/.cm/
-	$(RM) -r compat/MLB/ hedgehog/MLB/
+	$(RM) -r MLB/ compat/MLB/ hedgehog/MLB/
 
 $(BUILDDIR):
 	mkdir -p $@

@@ -7,6 +7,7 @@
 local
    $(SML_LIB)/basis/basis.mlb
    ../compat/mlton.sml
+
    (* Internal modules *)
    seq.sml
    tree.sml
@@ -18,11 +19,13 @@ local
    (* Exported modules *)
    splitmix.sig
    splitmix.sml
+   range.sig
    range.sml
    gen.sig
    gen.sml
    state.sml
    function.sml
+   property.sig
    property.sml
 
    (* Interface *)

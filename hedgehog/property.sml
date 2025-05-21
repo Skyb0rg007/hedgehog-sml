@@ -1,69 +1,8 @@
-(* property.sml
- * © 2023 Skye Soss
- *)
-
-signature PROPERTY =
-  sig
-    include MONAD
-
-    val delay : (unit -> 'a t) -> 'a t
-    val discard : 'a t
-    
-    (** Code coverage **)
-    (* `cover (name, minimum, covered)` *)
-    val cover : string * real * bool -> unit t
-    (* `classify (name, covered)` == `cover (name, 0.0, covered)` *)
-    val classify : string * bool -> unit t
-    (* `label name` == `classify (name, true)` *)
-    val label : string -> unit t
-
-    (** Annotations **)
-    val annotate : string -> unit t
-
-    (** Generating inputs **)
-    (* `forAllWith toString generator` *)
-    val forAllWith : ('a -> string) -> 'a Gen.t -> 'a t
-
-    structure Cover :
-      sig
-        datatype t = Cover | NoCover
-      end
-
-    structure Label :
-      sig
-        datatype 'a t = T of string * real * 'a
-      end
-
-    structure Coverage :
-      sig
-        datatype 'a t = T of 'a Label.t list
-      end
-
-    datatype log
-      = ForAll of string * string
-      | Annotation of string
-      | Footnote of string
-      | Cover of Cover.t Coverage.t
-      | Error of exn
-
-    datatype status
-      = Failed of {shrinks : int, log : log list}
-      | GaveUp
-      | OK
-
-    datatype report = Report of {
-        successes : int,
-        discards : int,
-        coverage : int Coverage.t,
-        status : status
-      }
-
-    val report : unit t -> report
-  end
 
 structure Property =
   struct
 
+    (* Whether a test is covered by a classifier *)
     structure Cover =
       struct
         datatype t = Cover | NoCover
@@ -79,7 +18,22 @@ structure Property =
           | toCount NoCover = 0
       end
 
-    structure Label =
+    (* The extent to which a test is covered by a classifier *)
+    structure Label :
+      sig
+        type 'a t
+
+        val make : string * real * 'a -> 'a t
+
+        val name : 'a t -> string
+        val minimum : 'a t -> real
+        val annotation : 'a t -> 'a
+
+        val map : ('a -> 'b) -> 'a t -> 'b t
+        val combineWith : ('a * 'b -> 'c) -> 'a t * 'b t -> 'c t
+        val covered : int t * int -> bool
+        val bounds : int t * int * LargeInt.int -> Real64.real * Real64.real
+      end =
       struct
         datatype 'a t = T of string * real * 'a
 
@@ -108,6 +62,8 @@ structure Property =
              confidence = confidence}
       end
 
+    (* Mapping from label to values.
+     * Indicates the extent to which all the classifiers cover a test *)
     structure Coverage =
       struct
         datatype 'a t = T of 'a Label.t list
@@ -162,6 +118,16 @@ structure Property =
             cs
       end
 
+    structure Log =
+      struct
+        datatype t
+          = ForAll of string * string
+          | Annotation of string
+          | Footnote of string
+          | Cover of Cover.t Coverage.t
+          | Error of exn
+      end
+
     datatype log
       = ForAll of string * string
       | Annotation of string
@@ -169,9 +135,25 @@ structure Property =
       | Cover of Cover.t Coverage.t
       | Error of exn
 
+    datatype termination
+      = Early of LargeInt.int * int
+      | NoEarly of LargeInt.int * int
+      | NoConfidence of int
+
+    type config = {
+        discardLimit : int ref,
+        shrinkLimit : int ref,
+        shrinkRetries : int ref,
+        termination : termination ref
+      }
+
+    type 'a t = (log list * 'a option) Gen.t
+
+    datatype property = Property of unit t * config
+
     structure M = MonadFn(
       struct
-        type 'a t = (log list * 'a option) Gen.t
+        type 'a t = 'a t
 
         fun pure a = Gen.pure ([], SOME a)
 
@@ -188,6 +170,7 @@ structure Property =
       end)
 
     open M
+
 
     val delay = Gen.delay
     val discard = Gen.discard
@@ -213,6 +196,45 @@ structure Property =
       bind (fromGen g) (fn x =>
       bind (writeLog (Annotation (toString x))) (fn () =>
       pure x))
+
+    fun property p =
+      let
+        val config = {
+            discardLimit = ref 100,
+            shrinkLimit = ref 1000,
+            shrinkRetries = ref 0,
+            termination = ref (NoConfidence 100)
+          }
+      in
+        Property (p, config)
+      end
+
+    fun setConfidence (Property (_, {termination = t, ...}), c) =
+      case !t of
+          NoEarly (_, tests) => t := NoEarly (c, tests)
+        | NoConfidence tests => t := NoEarly (c, tests)
+        | Early (_, tests) => t := Early (c, tests)
+
+    fun verifyTermination (Property (_, {termination = t, ...})) =
+      case !t of
+          NoEarly (c, tests) => t := Early (c, tests)
+        | NoConfidence tests => t := Early (1000000000, tests)
+        | Early (c, tests) => t := Early (c, tests)
+
+    fun setTestLimit (Property (_, {termination = t, ...}), tests) =
+      case !t of
+          NoEarly (c, _) => t := NoEarly (c, tests)
+        | NoConfidence _ => t := NoConfidence tests
+        | Early (c, _) => t := Early (c, tests)
+
+    fun setDiscardLimit (Property (_, {discardLimit, ...}), n) =
+      discardLimit := n
+
+    fun setShrinkLimit (Property (_, {shrinkLimit, ...}), n) =
+      shrinkLimit := n
+
+    fun setRetries (Property (_, {shrinkRetries, ...}), n) =
+      shrinkRetries := n
 
     datatype status
       = Failed of {shrinks : int, log : log list}
@@ -313,4 +335,6 @@ structure Property =
       in
         loop (0, 0, size, seed, Coverage.empty)
       end
+
+    fun run _ = ()
   end

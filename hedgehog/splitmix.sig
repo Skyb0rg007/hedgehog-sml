@@ -19,13 +19,11 @@ signature SPLITMIX =
     val split : t -> t * t
 
     (* Generate a random integer between given low and high
-     * Returns the integer along with a new gernerator
      * raises `Fail` if `lo > hi` *)
-    val intInfRange : IntInf.int * IntInf.int -> t -> IntInf.int * t
+    val intInfRange : IntInf.int * IntInf.int -> t -> IntInf.int
 
     (* Generate a random floating point number between given low and high
-     * Returns the number along with a new gernerator
      * raises `Fail` if `lo > hi` or if either input is NaN or infinite *)
-    val realRange : LargeReal.real * LargeReal.real -> t -> LargeReal.real * t
+    val realRange : LargeReal.real * LargeReal.real -> t -> LargeReal.real
   end
 

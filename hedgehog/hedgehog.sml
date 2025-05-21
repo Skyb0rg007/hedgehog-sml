@@ -4,11 +4,12 @@
 
 structure Hedgehog =
 struct
-  structure Gen :> GEN = Gen
-  structure Property :> PROPERTY = Property
+  structure Gen = Gen
+  structure Property = Property
 
-  structure SplitMix :> SPLITMIX = SplitMix
+  structure SplitMix = SplitMix
   structure Range = Range
+  structure RealRange = RealRange
   structure Seq = Seq
   structure Either = Either
   structure State = State

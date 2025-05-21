@@ -1,4 +1,4 @@
-(* range.sig
+(* range.sml
  * © 2023 Skye Soss
  *
  * Representations of numeric ranges

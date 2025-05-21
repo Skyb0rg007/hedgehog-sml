@@ -6,6 +6,7 @@
 
 Library
   structure Hedgehog
+  structure GenDirect
 is
   $/basis.cm
 
@@ -21,7 +22,10 @@ is
   seq.sml
   tree.sml
   score.sml
+  property.sig
   property.sml
   state.sml
   function.sml
   hedgehog.sml
+  gen-direct.sml
+

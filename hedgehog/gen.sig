@@ -82,16 +82,15 @@ sig
 
   val int : Range.t -> int t
   val intInf : Range.t -> IntInf.int t
-  (* TODO *)
-  (* val int32 : Range.t -> Int32.int t *)
-  (* val int64 : Range.t -> Int64.int t *)
-  (* val position : Range.t -> Position.int t *)
-  (* val word : Range.t -> Word.word t *)
-  (* val word8 : Range.t -> Word8.word t *)
-  (* val word32 : Range.t -> Word32.word t *)
-  (* val word64 : Range.t -> Word64.word t *)
-  (* val largeWord : Range.t -> LargeWord.word t *)
-  (* val sysWord : Range.t -> SysWord.word t *)
+  val int32 : Range.t -> Int32.int t
+  val int64 : Range.t -> Int64.int t
+  val position : Range.t -> Position.int t
+  val word : Range.t -> Word.word t
+  val word8 : Range.t -> Word8.word t
+  val word32 : Range.t -> Word32.word t
+  val word64 : Range.t -> Word64.word t
+  val largeWord : Range.t -> LargeWord.word t
+  val sysWord : Range.t -> SysWord.word t
 
   (***************************************************************************
    *
@@ -99,11 +98,9 @@ sig
    *
    ***************************************************************************)
 
-  (* TODO *)
-  (* val real : RealRange.t -> real t *)
-  (* val real32 : RealRange.t -> Real32.real t *)
-  (* val real64 : RealRange.t -> Real64.real t *)
-  (* val largeReal : RealRange.t -> LargeReal.real t *)
+  val real : RealRange.t -> real t
+  val real64 : RealRange.t -> Real64.real t
+  val largeReal : RealRange.t -> LargeReal.real t
 
   (***************************************************************************
    *

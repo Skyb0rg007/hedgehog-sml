@@ -9,11 +9,12 @@ sig
 
   type ('k, 'v) t
 
-  val new : unit -> ('k, 'v) t
+  val new : ('k * 'k -> order) -> ('k, 'v) t
   val size : ('k, 'v) t -> int
-  val insert : ('k * 'k -> order) -> ('k, 'v) t * 'k * 'v -> unit
+  val insert : ('k, 'v) t * 'k * 'v -> unit
   val toList : ('k, 'v) t -> ('k * 'v) list
   val elems : ('k, 'v) t -> 'v list
+  val lookup : ('k, 'v) t * 'k -> 'v option
 
 end =
 struct
@@ -23,7 +24,11 @@ struct
     = Nil
     | Bin of int ref * ('k, 'v) node ref * 'k * 'v ref * ('k, 'v) node ref
 
-  datatype ('k, 'v) t = Tree of {root : ('k, 'v) node ref, size : int ref}
+  datatype ('k, 'v) t = Tree of {
+      compare : 'k * 'k -> order,
+      root : ('k, 'v) node ref,
+      size : int ref
+    }
 
   fun skew t =
     case !t of
@@ -50,11 +55,11 @@ struct
                         then (r := !rl; rl := !t; rlvl := !rlvl + 1; t := right)
                         else ()
 
-  fun new () = Tree {root = ref Nil, size = ref 0}
+  fun new cmp = Tree {compare = cmp, root = ref Nil, size = ref 0}
 
   fun size (Tree {size, ...}) = !size
 
-  fun insert cmp (Tree {root, size}, k, v) =
+  fun insert (Tree {compare, root, size}, k, v) =
     let
       fun loop t =
         case !t of
@@ -62,10 +67,24 @@ struct
               (t := Bin (ref 1, ref Nil, k, ref v, ref Nil);
                size := !size + 1)
           | Bin (_, l, k', v', r) =>
-              case cmp (k, k') of
+              case compare (k, k') of
                   EQUAL => v' := v
                 | LESS => (loop l; skew t; split t)
                 | GREATER => (loop r; skew t; split t)
+    in
+      loop root
+    end
+
+  fun lookup (Tree {compare, root, ...}, k) =
+    let
+      fun loop t =
+        case !t of
+            Nil => NONE
+          | Bin (_, l, k', v', r) =>
+              case compare (k, k') of
+                  EQUAL => SOME (!v')
+                | LESS => loop l
+                | GREATER => loop r
     in
       loop root
     end
